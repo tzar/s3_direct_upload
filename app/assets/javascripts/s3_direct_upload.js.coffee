@@ -18,6 +18,7 @@ $.fn.S3Uploader = (options) ->
     path: ''
     additional_data: null
     before_add: null
+    before_send: null
     remove_completed_progress_bar: true
     remove_failed_progress_bar: false
     progress_bar_target: null
@@ -53,6 +54,7 @@ $.fn.S3Uploader = (options) ->
         to = $uploadForm.data('post')
         if to
           content[$uploadForm.data('as')] = content.url
+          settings.before_send(content) if settings.before_send
 
           $.ajax
             type: 'POST'
