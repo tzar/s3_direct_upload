@@ -22,14 +22,14 @@ $.fn.S3Uploader = (options) ->
     remove_completed_progress_bar: true
     remove_failed_progress_bar: false
     progress_bar_target: null
+    fileupload_options: {}
 
   $.extend settings, options
 
   current_files = []
 
   setUploadForm = ->
-    $uploadForm.fileupload
-
+    fileupload_config =
       add: (e, data) ->
         current_files.push data
         file = data.files[0]
@@ -91,6 +91,8 @@ $.fn.S3Uploader = (options) ->
 
         data[1].value = settings.path + data[1].value #the key
         data
+
+    $uploadForm.fileupload $.extend(fileupload_config, settings.fileupload_options)
 
   build_content_object = ($uploadForm, file, result) ->
     content = {}
