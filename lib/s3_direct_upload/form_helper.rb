@@ -21,7 +21,8 @@ module S3DirectUpload
           max_file_size: 500.megabytes,
           as: "file",
           key_starts_with: "uploads/",
-          key: key
+          key: key,
+          encrypt: false
         )
       end
 
@@ -40,15 +41,17 @@ module S3DirectUpload
       end
 
       def fields
-        {
+        fields = {
           :key => @options[:key] || key,
           :acl => @options[:acl],
           "AWSAccessKeyId" => @options[:aws_access_key_id],
           :policy => policy,
           :signature => signature,
           :success_action_status => "201",
-          'X-Requested-With' => 'xhr'
+          'X-Requested-With' => 'xhr',
         }
+        fields['x-amz-server-side-encryption'] = 'AES256' if @options[:encrypt]
+        return fields
       end
 
       def key
@@ -64,7 +67,7 @@ module S3DirectUpload
       end
 
       def policy_data
-        {
+        data = {
           expiration: @options[:expiration],
           conditions: [
             ["starts-with", "$utf8", ""],
@@ -77,6 +80,8 @@ module S3DirectUpload
             {success_action_status: "201"}
           ]
         }
+        data[:conditions] << {'x-amz-server-side-encryption' => 'AES256'} if @options[:encrypt]
+        return data
       end
 
       def signature
