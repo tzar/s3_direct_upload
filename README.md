@@ -1,5 +1,7 @@
 # S3DirectUpload
 
+[![Build Status](https://travis-ci.org/waynehoover/s3_direct_upload.png)](https://travis-ci.org/waynehoover/s3_direct_upload)
+
 Easily generate a form that allows you to upload directly to Amazon S3.
 Multi file uploading supported by jquery-fileupload.
 
@@ -12,13 +14,14 @@ Add this line to your application's Gemfile:
 
 Then add a new initalizer with your AWS credentials:
 
-**config/initalizers/s3_direct_upload.rb**
+**config/initializers/s3_direct_upload.rb**
 ```ruby
 S3DirectUpload.config do |c|
   c.access_key_id = ""       # your access key id
   c.secret_access_key = ""   # your secret access key
   c.bucket = ""              # your bucket name
-  c.region = ""              # region prefix of your bucket url (optional), eg. "s3-eu-west-1"
+  c.region = nil             # region prefix of your bucket url. This is _required_ for the non-default AWS region, eg. "s3-eu-west-1"
+  c.url = nil                # S3 API endpoint (optional), eg. "https://#{c.bucket}.s3.amazonaws.com/"
 end
 ```
 
@@ -52,15 +55,17 @@ Add the following js and css to your asset pipeline:
 ## Usage
 Create a new view that uses the form helper `s3_uploader_form`:
 ```ruby
-<%= s3_uploader_form post: model_url, as: "model[image_url]", id: "myS3Uploader" do %>
+<%= s3_uploader_form callback_url: model_url, callback_param: "model[image_url]", id: "s3-uploader" do %>
   <%= file_field_tag :file, multiple: true %>
 <% end %>
 ```
 
+Note: Its required that the file_field_tag is named 'file'.
+
 Then in your application.js.coffee, call the S3Uploader jQuery plugin on the element you created above:
 ```coffeescript
 jQuery ->
-  $("#myS3Uploader").S3Uploader()
+  $("#s3-uploader").S3Uploader()
 ```
 
 Optionally, you can also place this template in the same view for the progress bars:
@@ -74,20 +79,38 @@ Optionally, you can also place this template in the same view for the progress b
 ```
 
 ## Options for form helper
-* `post:` url in which is POST'd to after file is uploaded to S3. If you don't specify this option, no callback to the server will be made after the file has uploaded to S3.
-* `as:` parameter value for the POST in which the key will be the URL of the file on S3. If for example this is set to "model[image_url]" then the data posted would be `model[image_url] : http://bucketname.s3.amazonws.com/filename.ext`
-* `key:` key on s3. defaults to `"uploads/#{SecureRandom.hex}/${filename}"`. needs to be at least `"${filename}"`.
-* `key_starts_with:` constraint on key on s3. Defaults to `uploads/`. if you change the `key` option, make sure this starts with what you put there. If you set this as a blank string the upload path to s3 can be anything, so be careful.
-* `acl:` acl for files uploaded to s3, defaults to "public-read"
-* `max_file_size:` maximum file size, defaults to 500.megabytes
-* `id:` html id for the form, its recommended that you give the form an id so you can reference with the jQuery plugin.
-* `class:` optional html class for the form.
-* `data:` Optional html data
+* `callback_url:` No default. The url that is POST'd to after file is uploaded to S3. If you don't specify this option, no callback to the server will be made after the file has uploaded to S3.
+* `callback_method:` Defaults to `POST`. Use PUT and remove the multiple option from your file field to update a model.
+* `callback_param:` Defaults to `file`. Parameter key for the POST to `callback_url` the value will be the full s3 url of the file. If for example this is set to "model[image_url]" then the data posted would be `model[image_url] : http://bucketname.s3.amazonws.com/filename.ext`
+* `key:` Defaults to `uploads/{timestamp}-{unique_id}-#{SecureRandom.hex}/${filename}`. It is the key, or filename used on s3. `{timestamp}` and `{unique_id}` are special substitution strings that will be populated by javascript with values for the current upload. `${filename}` is a special s3 string that will be populated with the original uploaded file name. Needs to be at least `"${filename}"`. It is highly recommended to use both `{unique_id}`, which will prevent collisions when uploading files with the same name (such as from a mobile device, where every photo is named image.jpg), and a server-generated random value such as `#{SecureRandom.hex}`, which adds further collision protection with other uploaders.
+* `key_starts_with:` Defaults to `uploads/`. Constraint on the key on s3.  if you change the `key` option, make sure this starts with what you put there. If you set this as a blank string the upload path to s3 can be anything - not recommended!
+* `acl:` Defaults to `public-read`. The AWS acl for files uploaded to s3.
+* `max_file_size:` Defaults to `500.megabytes`. Maximum file size allowed.
+* `id:` Optional html id for the form, its recommended that you give the form an id so you can reference with the jQuery plugin.
+* `class:` Optional html class for the form.
+* `data:` Optional html data attribute hash.
+* `bucket:` Optional (defaults to bucket used in config).
 
-### Persisting the S3 url
-It is recommended that you persist the image_url that is sent back from the POST request (to the url given to the `post` option and as the key given in the `as` option). So to access your files later.
+### Example with all options
+```ruby
+<%= s3_uploader_form callback_url: model_url, 
+                     callback_method: "POST", 
+                     callback_param: "model[image_url]", 
+                     key: "files/{timestamp}-{unique_id}-#{SecureRandom.hex}/${filename}", 
+                     key_starts_with: "files/", 
+                     acl: "public-read", 
+                     max_file_size: 50.megabytes, 
+                     id: "s3-uploader", 
+                     class: "upload-form", 
+                     data: {:key => :val} do %>
+  <%= file_field_tag :file, multiple: true %>
+<% end %>
+```
 
-One way to do this is to make sure you have `resources model` in your routes file, and add the `image_url` (or whatever you would like to name it) attribute to your model, and then make sure you have the create action in your controller for that model.
+### Example to persist the S3 url in your rails app
+It is recommended that you persist the url that is sent via the POST request (to the url given to the `callback_url` option and as the key given in the `callback_param` option).
+
+One way to do this is to make sure you have `resources model` in your routes file, and add a `s3_url` (or something similar) attribute to your model. Then make sure you have the create action in your controller for that model that saves the url from the callback_param.
 
 You could then have your create action render a javascript file like this:
 **create.js.erb**
@@ -124,17 +147,42 @@ Use the javascript in `s3_direct_upload` as a guide.
 * `remove_failed_progress_bar:` By default, the progress bar will not be removed when uploads fail. You can set this to `true` if you want to remove the progress bar.
 * `before_add:` Callback function that executes before a file is added to the queue. It is passed file object and expects `true` or `false` to be returned. This could be useful if you would like to validate the filenames of files to be uploaded for example. If true is returned file will be uploaded as normal, false will cancel the upload.
 * `progress_bar_target:` The jQuery selector for the element where you want the progress bars to be appended to. Default is the form element.
+* `click_submit_target:` The jQuery selector for the element you wish to add a click handler to do the submitting instead of submiting on file open.
 
-### Example with all options.
+### Example with all options
 ```coffeescript
 jQuery ->
   $("#myS3Uploader").S3Uploader
     path: 'path/to/my/files/on/s3'
     additional_data: {key: 'value'}
     remove_completed_progress_bar: false
-    before_add: myCallBackFunction() # must return true or false if set
+    before_add: myCallBackFunction # must return true or false if set
     progress_bar_target: $('.js-progress-bars')
+    click_submit_target: $('.submit-target')
 ```
+### Example with single file upload bar without script template
+
+This demonstrates how to use progress_bar_target and allow_multiple_files (only works with false option - single file) to show only one progress bar without script template.
+
+```coffeescript
+jQuery ->
+  $("#myS3Uploader").S3Uploader
+    progress_bar_target: $('.js-progress-bars')
+    allow_multiple_files: false
+```
+
+Target for progress bar
+
+```html
+<div class="upload js-progress-bars">
+  <div class="progress">
+    <div class="bars"> </div>
+  </div>
+</div>
+```
+
+
+
 
 ### Public methods
 You can change the settings on your form later on by accessing the jQuery instance:
@@ -201,7 +249,7 @@ rake task.
 
 First, add the fog gem to your `Gemfile` and run `bundle`:
 ```ruby
-  require 'fog'
+  gem 'fog'
 ```
 
 Then, run the rake task to delete uploads older than 2 days:
@@ -220,6 +268,19 @@ S3DirectUpload.config do |c|
   c.prefix_to_clean = "my_path/#{1.week.ago.strftime('%y%m%d')}"
 end
 ```
+
+Alternately, if you'd prefer for S3 to delete your old uploads automatically, you can do
+so by setting your bucket's
+[Lifecycle Configuration](http://docs.aws.amazon.com/AmazonS3/latest/UG/LifecycleConfiguration.html).
+
+## A note on IE support
+IE file uploads are working but with a couple caveats.
+
+* The before_add callback doesn't work.
+* The progress bar doesn't work on IE.
+
+But IE should still upload your files fine.
+
 
 ## Contributing / TODO
 This is just a simple gem that only really provides some javascript and a form helper.
