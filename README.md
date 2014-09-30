@@ -60,7 +60,9 @@ Create a new view that uses the form helper `s3_uploader_form`:
 <% end %>
 ```
 
-Note: Its required that the file_field_tag is named 'file'.
+* It is required that the file_field_tag is named 'file'.
+* A unique :id should be added to file_field_tag if there is many 's3_uploader_form' in the page
+
 
 Then in your application.js.coffee, call the S3Uploader jQuery plugin on the element you created above:
 ```coffeescript
@@ -176,7 +178,7 @@ Target for progress bar
 ```html
 <div class="upload js-progress-bars">
   <div class="progress">
-    <div class="bars"> </div>
+    <div class="bar"> </div>
   </div>
 </div>
 ```
