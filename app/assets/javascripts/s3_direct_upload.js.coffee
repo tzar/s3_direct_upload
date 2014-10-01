@@ -38,7 +38,7 @@ $.fn.S3Uploader = (options) ->
   setUploadForm = ->
     fileupload_config =
       add: (e, data) ->
-        file = data.files[0]
+        file           = data.files[0]
         file.unique_id = Math.random().toString(36).substr(2,16)
 
         unless settings.before_add and not settings.before_add(file)
@@ -119,6 +119,8 @@ $.fn.S3Uploader = (options) ->
           .replace('{unique_id}', @files[0].unique_id)
           .replace('{extension}', @files[0].name.split('.').pop())
 
+        @files[0].filepath = key
+
         # substitute upload timestamp and unique_id into key
         key_field = $.grep data, (n) ->
           n if n.name == "key"
@@ -139,10 +141,10 @@ $.fn.S3Uploader = (options) ->
     if result # Use the S3 response to set the URL to avoid character encodings bugs
       content.url            = $(result).find("Location").text()
       content.filepath       = $('<a />').attr('href', content.url)[0].pathname
-    else # IE <= 9 retu      rn a null result object so we use the file object instead
+    else # IE <= 9 return a null result object so we use the file object instead
       domain                 = $uploadForm.attr('action')
-      content.filepath       = $uploadForm.find('input[name=key]').val().replace('/${filename}', '')
-      content.url            = domain + content.filepath + '/' + encodeURIComponent(file.name)
+      content.filepath       = file.filepath.replace('${filename}', file.name)
+      content.url            = domain + encodeURIComponent(content.filepath)
 
     content.filename         = file.name
     content.filesize         = file.size if 'size' of file
